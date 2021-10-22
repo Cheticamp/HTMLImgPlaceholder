@@ -13,8 +13,8 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.DrawableWrapper
 import android.os.Build
 import android.os.Bundle
-import android.text.Html
-import android.text.Spanned
+import android.text.*
+import android.text.style.MetricAffectingSpan
 import android.util.Log
 import android.widget.TextView
 import androidx.annotation.RequiresApi
@@ -33,10 +33,10 @@ class MainActivity : AppCompatActivity() {
         tvBody = findViewById(R.id.tv_body)
         val exampleText =
             "Example <br> <img src=\"https://www.w3schools.com/images/w3schools_green.jpg\" alt=\"W3Schools.com\"> <br> Example"
-        tvBody.text = fromHtml(exampleText, this)
+        tvBody.setText(fromHtml(exampleText, this), TextView.BufferType.SPANNABLE)
     }
 
-    private fun fromHtml(html: String?, context: Context): Spanned? {
+    private fun fromHtml(html: String?, context: Context): Spannable {
         // Define the ImageGetter for Html. The default "no image, yet" drawable is
         // R.drawable.placeholder but can be another drawable.
         val imageGetter = Html.ImageGetter { url ->
@@ -50,11 +50,13 @@ class MainActivity : AppCompatActivity() {
                 simulateNetworkFetch(context, this, url)
             }
         }
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY, imageGetter, null)
-        } else {
-            Html.fromHtml(html, imageGetter, null)
-        }
+        return SpannableString(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY, imageGetter, null)
+            } else {
+                Html.fromHtml(html, imageGetter, null)
+            }
+        )
     }
 
     @SuppressLint("NewApi")
@@ -70,11 +72,26 @@ class MainActivity : AppCompatActivity() {
             } else {
                 (imageWrapper as ImageWrapperApi23).drawable = dr
             }
-            // Force a remeasure/relayout of the TextView with the new image.
+            // Force a remeasure/relayout of the TextView with the new image. invalidate() and
+            // requestLayout() should work (?) but don't.
             this@MainActivity.runOnUiThread {
-                tvBody.text = tvBody.text
+                // This is the quick way but may be expensive.
+//                tvBody.text = tvBody.text
+                // This is a clever way but really?
+                val text = tvBody.text as Spannable
+                text.setSpan(ForceLayoutSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
+    }
+
+    // Has to extend MetricAffectingSpan to force size change.
+    private class ForceLayoutSpan : MetricAffectingSpan() {
+        override fun updateDrawState(tp: TextPaint?) {
+        }
+
+        override fun updateMeasureState(textPaint: TextPaint) {
+        }
+
     }
 
     // Simple wrapper for a BitmapDrawable. Use this for API 22-.
